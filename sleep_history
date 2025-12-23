@@ -1,0 +1,4 @@
+Date,Sleep_Duration,Bedtime,Wake_Time,Exercise,Caffeine,Screen_Time,Stress,Mood,Sleep_Interruptions,Predicted_Quality
+2025-10-07 20:06:52,4.100000000000001,01:00,03:45,0,High,3,1,Neutral,Yes,Poor
+2025-10-07 20:07:32,5.299999999999997,01:00,09:00,0,Low,1,1,Neutral,Yes,Poor
+2025-10-07 20:11:44,3.0000000000000013,01:15,04:15,10,None,6,2,Neutral,Yes,Poor
