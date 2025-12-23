@@ -1,72 +1,109 @@
 import streamlit as st
-import datetime
+import numpy as np
+import pandas as pd
+import joblib
+from datetime import datetime
 
-# ----------------- UTILITY FUNCTIONS -----------------
-# Function to calculate suggested bedtime based on wake-up goal
-def suggest_bedtime(wake_time: str, sleep_hours: int = 8):
-    wake_hour, wake_min = map(int, wake_time.split(":"))
-    wake_dt = datetime.datetime.combine(datetime.date.today(), datetime.time(wake_hour, wake_min))
-    sleep_delta = datetime.timedelta(hours=sleep_hours)
-    bedtime = wake_dt - sleep_delta
-    return bedtime.strftime("%H:%M")
+model = joblib.load('models/sleep_model.pkl')
 
-# Function to give simple AI-like advice
-def get_sleep_advice(habits: dict):
-    advice = []
-    if habits.get("caffeine"):
-        advice.append("Avoid caffeine 6 hours before bedtime.")
-    if habits.get("screen_time"):
-        advice.append("Reduce screen exposure 30 mins before sleep.")
-    if habits.get("stress_level", 0) > 7:
-        advice.append("Try meditation or deep breathing to relax.")
-    return advice if advice else ["Your sleep routine looks good!"]
+st.set_page_config(
+    page_title="Sleep Quality Predictor",
+    page_icon="🛌",
+    layout="centered"
+)
 
-# ----------------- STREAMLIT APP -----------------
-st.set_page_config(page_title="AI Sleep Routine Advisor", page_icon="🛌", layout="centered")
+st.markdown("<h1 style='text-align: center; color: #6C63FF;'>Sleep Quality Predictor 🛌</h1>", unsafe_allow_html=True)
+st.write("Monitor and improve your sleep with daily input data.")
 
-# ---- CSS Styling ----
-st.markdown("""
-    <style>
-    body {
-        background-image: url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e'); 
-        background-size: cover;
-    }
-    .stButton>button {
-        background: linear-gradient(90deg, #6a11cb, #2575fc);
-        color: white;
-        font-size: 18px;
-        border-radius: 10px;
-        padding: 10px 20px;
-        transition: transform 0.2s;
-    }
-    .stButton>button:hover {
-        transform: scale(1.05);
-    }
-    </style>
-""", unsafe_allow_html=True)
+st.header("Enter your daily habits:")
 
-st.title("🛌 AI Sleep Routine Advisor")
-st.subheader("Personalized sleep suggestions for better rest")
+sleep_duration = st.number_input("Sleep Duration (hours)", min_value=0.0, max_value=24.0, step=0.1)
+bedtime = st.time_input("Bedtime")
+wake_time = st.time_input("Wake-up Time")
+exercise_duration = st.number_input("Exercise Duration (minutes)", min_value=0, max_value=300)
+caffeine_intake = st.selectbox("Caffeine Intake", ["None", "Low", "Moderate", "High"])
+screen_time = st.number_input("Screen Time Before Bed (minutes)", min_value=0, max_value=600)
+stress_level = st.slider("Stress Level (0–10)", min_value=0, max_value=10)
+mood = st.selectbox("Mood Before Sleep", ["Happy", "Neutral", "Sad", "Anxious"])
+sleep_interruptions = st.radio("Sleep Interruptions", ["Yes", "No"])
 
-# ---- User Inputs ----
-wake_time = st.time_input("What time do you want to wake up?", value=datetime.time(7, 0))
-sleep_hours = st.slider("How many hours do you want to sleep?", 4, 12, 8)
+caffeine_map = {"None": 0, "Low": 1, "Moderate": 2, "High": 3}
+caffeine_value = caffeine_map[caffeine_intake]
 
-caffeine = st.checkbox("Did you consume caffeine today?")
-screen_time = st.checkbox("Heavy screen usage before bed?")
-stress_level = st.slider("Stress level today (1-10)", 1, 10, 5)
+mood_map = {"Happy": 0, "Neutral": 1, "Sad": 2, "Anxious": 3}
+mood_value = mood_map[mood]
 
-# ---- Generate Routine ----
-if st.button("Generate My Sleep Routine"):
-    bedtime = suggest_bedtime(wake_time.strftime("%H:%M"), sleep_hours)
-    habits = {
-        "caffeine": caffeine,
-        "screen_time": screen_time,
-        "stress_level": stress_level
-    }
-    advice = get_sleep_advice(habits)
-    
-    st.success(f"💤 Suggested bedtime: **{bedtime}**")
-    st.subheader("AI Recommendations:")
-    for tip in advice:
-        st.write(f"• {tip}")
+interruptions_map = {"No": 0, "Yes": 1}
+interruptions_value = interruptions_map[sleep_interruptions]
+
+
+bedtime_hours = bedtime.hour + bedtime.minute/60
+wake_hours = wake_time.hour + wake_time.minute/60
+
+
+if st.button("Predict Sleep Quality"):
+    features = np.array([[sleep_duration, exercise_duration, caffeine_value, screen_time, stress_level]])
+    prediction = model.predict(features)[0]
+
+    categories = ["Average", "Good", "Poor"]  
+    predicted_quality = categories[prediction % len(categories)]
+
+    st.success(f"Predicted Sleep Quality: {predicted_quality}")
+
+    tips = []
+    if sleep_duration < 6:
+        tips.append("Try increasing your sleep duration to at least 7–8 hours.")
+    if screen_time > 120:
+        tips.append("Reduce screen time before bed; aim for less than 1–2 hours.")
+    if caffeine_value >= 2:
+        tips.append("Avoid caffeine in the evening to improve sleep quality.")
+    if exercise_duration < 20:
+        tips.append("Include at least 20–30 minutes of physical activity daily.")
+    if stress_level >= 7:
+        tips.append("Practice relaxation techniques like meditation or deep breathing.")
+    if mood_value >= 2:
+        tips.append("Consider calming activities before bedtime to improve mood.")
+    if sleep_interruptions == "Yes":
+        tips.append("Maintain a quiet, comfortable sleep environment and consistent bedtime.")
+
+    if not tips:
+        tips.append("Great! Your habits look healthy. Keep maintaining them.")
+
+    for tip in tips:
+        st.info(tip)
+
+    history = pd.DataFrame({
+        'Date': [datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
+        'Sleep_Duration':[sleep_duration],
+        'Bedtime':[bedtime.strftime("%H:%M")],
+        'Wake_Time':[wake_time.strftime("%H:%M")],
+        'Exercise':[exercise_duration],
+        'Caffeine':[caffeine_intake],
+        'Screen_Time':[screen_time],
+        'Stress':[stress_level],
+        'Mood':[mood],
+        'Sleep_Interruptions':[sleep_interruptions],
+        'Predicted_Quality':[predicted_quality]
+    })
+
+    history_file = "sleep_history.csv"
+    history.to_csv(history_file, mode='a', index=False, header=not pd.io.common.file_exists(history_file))
+
+
+if st.checkbox("View Past Predictions"):
+    try:
+        df_history = pd.read_csv("sleep_history.csv")
+        st.dataframe(df_history)
+
+      
+        st.subheader("Sleep Quality Trends")
+        import seaborn as sns
+        import matplotlib.pyplot as plt
+
+        plt.figure(figsize=(8,4))
+        sns.countplot(data=df_history, x='Predicted_Quality', palette="cool")
+        plt.title("Sleep Quality Trend")
+        st.pyplot(plt)
+
+    except FileNotFoundError:
+        st.warning("No history found yet.")
